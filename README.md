@@ -15,13 +15,17 @@ mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
 **Normal operation:** live decoder output, armed and idle, then torque
 tracking the pedal from partial to full press.
 
-<table>
-<tr>
-<td align="center" width="33%"><img src="media/terminal-idle-state.png" width="280"><br><sub>IDLE, no faults</sub></td>
-<td align="center" width="33%"><img src="media/terminal-drive-pedal-press.png" width="280"><br><sub>DRIVE, pedal pressed</sub></td>
-<td align="center" width="33%"><img src="media/terminal-drive-full-pedal.png" width="280"><br><sub>DRIVE, ~100% pedal</sub></td>
-</tr>
-</table>
+<sub>IDLE, no faults</sub>
+<br>
+<img src="media/terminal-idle-state.png" width="450">
+
+<sub>DRIVE, pedal pressed</sub>
+<br>
+<img src="media/terminal-drive-pedal-press.png" width="450">
+
+<sub>DRIVE, ~100% pedal</sub>
+<br>
+<img src="media/terminal-drive-full-pedal.png" width="450">
 
 **Fail-safe proof:** pulling the CAN loopback jumper mid-drive forces a
 fault and drops torque to zero, because the VCU only ever knew about the
