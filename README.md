@@ -8,28 +8,36 @@ mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
 
 [Watch the demo video](media/demo.mp4)
 
-**Normal operation:** armed and idle, then torque tracking the pedal from
-partial to full press.
+**Hardware setup:**
+
+<img src="media/idle-state.png" width="500">
+
+**Normal operation:** live decoder output, armed and idle, then torque
+tracking the pedal from partial to full press.
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="media/idle-state.png" width="260"><br><sub>IDLE, no faults</sub></td>
-<td align="center" width="33%"><img src="media/drive-pedal-press.png" width="260"><br><sub>DRIVE, pedal pressed</sub></td>
-<td align="center" width="33%"><img src="media/drive-full-pedal.png" width="260"><br><sub>DRIVE, ~100% pedal</sub></td>
+<td align="center" width="33%"><img src="media/terminal-idle-state.png" width="280"><br><sub>IDLE, no faults</sub></td>
+<td align="center" width="33%"><img src="media/terminal-drive-pedal-press.png" width="280"><br><sub>DRIVE, pedal pressed</sub></td>
+<td align="center" width="33%"><img src="media/terminal-drive-full-pedal.png" width="280"><br><sub>DRIVE, ~100% pedal</sub></td>
 </tr>
 </table>
 
-**Fail-safe proof** (left): pulling the CAN loopback jumper mid-drive
-forces a fault and drops torque to zero, because the VCU only ever knew
-about the sensor through a wire that can be cut. **Instrumentation** (right):
-pedal / drive state / torque decoded and plotted from a captured session.
+**Fail-safe proof:** pulling the CAN loopback jumper mid-drive forces a
+fault and drops torque to zero, because the VCU only ever knew about the
+sensor through a wire that can be cut.
 
 <table>
 <tr>
-<td align="center" width="50%"><img src="media/fault-timeout.png" width="380"><br><sub>FAULT from disconnected jumper</sub></td>
-<td align="center" width="50%"><img src="media/plot-example.png" width="380"><br><sub>Decoded/plotted session</sub></td>
+<td align="center" width="50%"><img src="media/fault-timeout.png" width="330"><br><sub>Pulling the jumper</sub></td>
+<td align="center" width="50%"><img src="media/terminal-fault-timeout.png" width="330"><br><sub>Resulting FAULT state</sub></td>
 </tr>
 </table>
+
+**Instrumentation:** pedal / drive state / torque decoded and plotted from
+a captured session.
+
+<img src="media/plot-example.png" width="500">
 
 ## Features
 
