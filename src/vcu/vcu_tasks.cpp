@@ -58,6 +58,8 @@ static uint16_t  s_lastPublishedFaults = 0xFFFF;
 static uint32_t  s_lastFaultPublishMs  = 0;
 
 
+static bool s_appsBrakeCheck = false;
+
 static uint32_t s_pedalMismatchStartMs = 0;
 static constexpr uint32_t PEDAL_MISMATCH_PERSIST_MS = 100;
 
@@ -95,6 +97,19 @@ static bool checkPedalPlausible(uint16_t potA_raw, uint16_t potB_raw, uint8_t* o
 
     *outPedalPct = avgPct; 
     return true;
+}
+
+static bool checkBrakePedalPlausible(uint8_t pedalPCT, bool brakePressed){
+    if(brakePressed && pedalPCT > 25){
+        s_appsBrakeCheck = true;
+        return true;
+    }
+    else if(s_appsBrakeCheck && pedalPCT < 5){
+        s_appsBrakeCheck = false;
+    }
+
+    return s_appsBrakeCheck;
+
 }
 
 static bool checkImuPlausible(int16_t ax, int16_t ay, int16_t az) {
@@ -412,16 +427,29 @@ static void vcuControlTask(void* arg) {
         }
 
         uint8_t pedalPct = 0;
+
+        bool brakePressed = s_buttonFlags & PedalFlag::BRAKE_PRESSED;
+
+
         bool pedalOk = checkPedalPlausible(s_potA_raw, s_potB_raw, &pedalPct);
         bool imuOk   = checkImuPlausible(s_accelX_mg, s_accelY_mg, s_accelZ_mg);
+        
 
         updateTimeoutFaults();
 
-        if (pedalOk) s_activeFaults &= ~FaultBit::PEDAL_IMPLAUSIBLE;
-        else         s_activeFaults |=  FaultBit::PEDAL_IMPLAUSIBLE;
+        if (pedalOk) {
+            s_activeFaults &= ~FaultBit::PEDAL_IMPLAUSIBLE;
+        }
+        else{
+            s_activeFaults |=  FaultBit::PEDAL_IMPLAUSIBLE;
+        }         
 
-        if (imuOk) s_activeFaults &= ~FaultBit::IMU_IMPLAUSIBLE;
-        else       s_activeFaults |=  FaultBit::IMU_IMPLAUSIBLE;
+        if (imuOk) {
+            s_activeFaults &= ~FaultBit::IMU_IMPLAUSIBLE;
+        }
+        else{   
+            s_activeFaults |=  FaultBit::IMU_IMPLAUSIBLE;
+        }
 
         updateLatchedFaults();
 
@@ -433,6 +461,12 @@ static void vcuControlTask(void* arg) {
         digitalWrite(PIN_BUZZER, s_driveState == DriveState::READY ? HIGH : LOW);
 
         uint8_t torquePct = computeTorquePct(s_driveState, pedalPct);
+        bool brakePedalActive = checkBrakePedalPlausible(pedalPct, brakePressed);
+        
+
+        if(brakePedalActive){
+            torquePct = 0; 
+        }
         s_lastTorquePct = torquePct;
         applyTorqueOutput(torquePct);
 
