@@ -78,6 +78,9 @@ a captured session.
   serious failure than a momentary reading mismatch.
 - Latched faults are saved to NVS, so restarting the board doesn't erase
   them.
+- Clearing a latched fault requires holding the brake and start buttons
+  together for 3 seconds while in `FAULT`, a deliberate action instead of
+  something that clears itself.
 - Fault frames are event-driven (sent on change), not broadcast every tick.
 - No driver library for the MPU6050 (raw register access instead).
 

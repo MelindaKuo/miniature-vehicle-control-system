@@ -57,6 +57,8 @@ static uint16_t  s_latchedFaults       = 0;
 static uint16_t  s_lastPublishedFaults = 0xFFFF;
 static uint32_t  s_lastFaultPublishMs  = 0;
 
+static uint32_t s_eraseMs = 0; 
+static bool s_erasedHeldLast = false;
 
 static bool s_appsBrakeCheck = false;
 
@@ -176,9 +178,28 @@ static DriveState stepDriveState(DriveState current, bool pedalOk, bool imuOk,
             }
             break;
         case DriveState::FAULT:
+            bool bothHeldNow = brakePressed && startPressed;
+            if(bothHeldNow && !s_erasedHeldLast){
+                //just pressed. 
+                s_eraseMs = millis(); 
+            }
+
+            else if(bothHeldNow && s_erasedHeldLast && (millis() - s_eraseMs) > 3000){
+                //latched NVS disappear
+                if(s_latchedFaults != 0 ){
+                    s_latchedFaults = 0; 
+                    faultStoreSave(s_latchedFaults);
+                }
+                
+            }
+
+            s_erasedHeldLast = bothHeldNow;
+
             if(pedalOk && imuOk && latchedFaults == 0 && activeFaults==0){
                 current = DriveState::IDLE;
             }
+
+
             break;  
     }
 
