@@ -4,6 +4,17 @@ Two-node EV control system on one ESP32: a sensor node (DIM) and a
 controller node (VCU), communicating over CAN (TWAI) in self-test loopback
 mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
 
+## Features
+
+- Dual redundant pedal potentiometers, cross-checked against each other
+- MPU6050 IMU with plausibility check
+- Drive state machine: `BOOT` → `IDLE` → `READY` → `DRIVE` → `FAULT`
+- Torque output with slew limiting
+- Brake/pedal plausibility check with hysteresis
+- Fault detection, latching, and persistence across reboot (NVS)
+- Fails safe to zero if the CAN connection is lost
+- CAN frame logging + Python decoder/plotter
+
 ## Demo
 
 [Watch the demo video](media/demo.mp4)
@@ -42,18 +53,6 @@ sensor through a wire that can be cut.
 a captured session.
 
 <img src="media/plot-example.png" width="500">
-
-## Features
-
-- Dual redundant pedal potentiometers, cross-checked against each other
-- MPU6050 IMU with plausibility check
-- Drive state machine: `BOOT` → `IDLE` → `READY` → `DRIVE` → `FAULT`
-- Torque output with slew limiting
-- Brake/pedal plausibility check with hysteresis
-- Fault detection, latching, and persistence across reboot (NVS)
-- Fails safe to zero if the CAN connection is lost
-- CAN frame logging + Python decoder/plotter
-
 
 ## Debugging and design notes
 
