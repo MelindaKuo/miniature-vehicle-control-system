@@ -7,15 +7,21 @@
 #include <cstring>
 
 bool canBusInit() {
-
-    twai_general_config_t gConfig = TWAI_GENERAL_CONFIG_DEFAULT(PIN_TWAI_TX, PIN_TWAI_RX, TWAI_MODE_NO_ACK);
+    twai_general_config_t gConfig = TWAI_GENERAL_CONFIG_DEFAULT(PIN_TWAI_TX, PIN_TWAI_RX, TWAI_MODE_NORMAL);
     twai_timing_config_t tConfig = TWAI_TIMING_CONFIG_500KBITS();
-
     twai_filter_config_t fConfig = {};
-    fConfig.single_filter = true;
-    fConfig.acceptance_code = (uint32_t)0b001 << 29;
-    uint32_t careBits = (uint32_t)0b111 << 29;
-    fConfig.acceptance_mask = ~careBits;
+
+    #ifdef NODE_ROLE_DIM
+    //DIM doesn't receive anything
+    #endif
+
+    #ifdef NODE_ROLE_VCU
+        fConfig.single_filter = true;
+        fConfig.acceptance_code = (uint32_t)0b001 << 29;
+        uint32_t careBits = (uint32_t)0b111 << 29;
+        fConfig.acceptance_mask = ~careBits;
+
+    #endif
 
     if(twai_driver_install (&gConfig, &tConfig, &fConfig) != ESP_OK) {
         return false;
@@ -34,7 +40,6 @@ bool canSend(uint32_t id, const uint8_t* data, uint8_t dlc) {
     twai_message_t msg = {0};
     msg.identifier = id;
     msg.data_length_code = dlc;
-    msg.self = 1;  //...
 
     memcpy(msg.data, data, dlc);
 

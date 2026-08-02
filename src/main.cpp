@@ -14,13 +14,32 @@ void setup() {
     Serial.println();
     Serial.println(F("=== EV control system: boot ==="));
 
-    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-    analogReadResolution(12);
-    canBusInit(); 
+    canBusInit();
 
 
-    dimStart();
-    vcuStart();
+    //potentiometers, MPU6050, buttons
+    #ifdef NODE_ROLE_DIM
+        Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+        analogReadResolution(12);
+        dimStart();
+
+    #endif
+
+
+    //servo + buzzer
+
+    #ifdef NODE_ROLE_VCU
+        vcuStart();
+    #endif
+
+
+    
+
+    
+
+
+    
+    
 
     Serial.println(F("=== tasks started ==="));
 }
