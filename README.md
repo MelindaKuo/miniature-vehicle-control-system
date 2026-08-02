@@ -8,16 +8,69 @@ mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
 
 [Watch the demo video](media/demo.mp4)
 
+**Normal operation:** armed and idle, then torque tracking the pedal from
+partial to full press.
+
+<table>
+<tr>
+<td align="center" width="33%"><img src="media/idle-state.png" width="260"><br><sub>IDLE, no faults</sub></td>
+<td align="center" width="33%"><img src="media/drive-pedal-press.png" width="260"><br><sub>DRIVE, pedal pressed</sub></td>
+<td align="center" width="33%"><img src="media/drive-full-pedal.png" width="260"><br><sub>DRIVE, ~100% pedal</sub></td>
+</tr>
+</table>
+
+**Fail-safe proof** (left): pulling the CAN loopback jumper mid-drive
+forces a fault and drops torque to zero, because the VCU only ever knew
+about the sensor through a wire that can be cut. **Instrumentation** (right):
+pedal / drive state / torque decoded and plotted from a captured session.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="media/fault-timeout.png" width="380"><br><sub>FAULT from disconnected jumper</sub></td>
+<td align="center" width="50%"><img src="media/plot-example.png" width="380"><br><sub>Decoded/plotted session</sub></td>
+</tr>
+</table>
+
 ## Features
 
 - Dual redundant pedal potentiometers, cross-checked against each other
 - MPU6050 IMU with plausibility check
 - Drive state machine: `BOOT` → `IDLE` → `READY` → `DRIVE` → `FAULT`
 - Torque output with slew limiting
-- Brake/pedal plausibility check (APPS/BPPC-style) with hysteresis
+- Brake/pedal plausibility check with hysteresis
 - Fault detection, latching, and persistence across reboot (NVS)
 - Fails safe to zero if the CAN connection is lost
 - CAN frame logging + Python decoder/plotter
+
+
+## Debugging and design notes
+
+- Single ESP32, no CAN transceiver. The two nodes only exchange data as real
+  CAN frames over a physical loopback wire, no shared memory between them.
+- The ESP32's CAN peripheral doesn't automatically receive its own
+  transmitted frames from the TX-RX wire. Needs an explicit self-reception
+  flag on every send (`msg.self = 1`).
+- Button ISRs are placed in IRAM instead of flash, so they can still run
+  even during an NVS (flash) write.
+- IDs split `0x10x` (DIM) / `0x20x` (VCU) so the acceptance filter can
+  reject the VCU's own frames with a single bitmask, not a lookup list.
+- DIM ships raw ADC counts, not a calculated percentage, so the VCU sees
+  the real sensor reading instead of the DIM's own conclusion.
+- Every frame carries a counter and checksum, to tell apart a lost frame
+  from a corrupted one.
+- Dual potentiometers cross-check each other's readings.
+- A time window (not an instant cutoff) decides whether a pedal mismatch
+  is a real fault or just noise.
+- Active faults and latched faults are separate: active is what's wrong
+  right now, latched is what's ever gone seriously wrong.
+- Only `DIM_TIMEOUT` latches, since a fully silent sensor node is a more
+  serious failure than a momentary reading mismatch.
+- Latched faults are saved to NVS, so restarting the board doesn't erase
+  them.
+- Fault frames are event-driven (sent on change), not broadcast every tick.
+- No driver library for the MPU6050 (raw register access instead).
+
+
 
 ## Wiring
 
