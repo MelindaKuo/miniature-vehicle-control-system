@@ -24,23 +24,11 @@ void setup() {
         dimStart();
 
     #endif
-
-
     //servo + buzzer
 
     #ifdef NODE_ROLE_VCU
         vcuStart();
     #endif
-
-
-    
-
-    
-
-
-    
-    
-
     Serial.println(F("=== tasks started ==="));
 }
 

@@ -65,6 +65,12 @@ static bool s_appsBrakeCheck = false;
 static uint32_t s_pedalMismatchStartMs = 0;
 static constexpr uint32_t PEDAL_MISMATCH_PERSIST_MS = 100;
 
+
+static bool s_lastBusOff = false;
+
+
+
+
 static bool checkPedalPlausible(uint16_t potA_raw, uint16_t potB_raw, uint8_t* outPedalPct) {
 
     bool rangeCheckA = (potA_raw <= POT_A_RAW_MAX && potA_raw >= POT_A_RAW_MIN);
@@ -297,7 +303,11 @@ static void updateLatchedFaults() {
 }
 
 static FaultCode mostSevereActiveFault(uint16_t activeFaults) {
-    //heartbeat most severe 
+    //bus most severe 
+
+    if(activeFaults & FaultBit::CAN_BUS_OFF){
+        return FaultCode::CAN_BUS_OFF;
+    }
 
     if(activeFaults & FaultBit::DIM_TIMEOUT){
         return FaultCode::DIM_TIMEOUT;
@@ -386,6 +396,25 @@ static void vcuControlTask(void* arg) {
 
     for (;;) {
         esp_task_wdt_reset();
+
+        twai_status_info_t status;
+        canGetStatus(&status);
+
+        Serial.printf("TX ERROR: %lu   RX ERROR: %lu\n", status.tx_error_counter, status.rx_error_counter);
+        
+        bool busOffNow = (status.state == TWAI_STATE_BUS_OFF);
+
+        if(busOffNow){
+            s_activeFaults |= FaultBit::CAN_BUS_OFF;
+            if(!s_lastBusOff){
+                twai_initiate_recovery();
+            }
+        }
+        else{
+            s_activeFaults &= ~FaultBit::CAN_BUS_OFF;
+        }
+
+        s_lastBusOff = busOffNow;
 
         while (xQueueReceive(s_rxQueue, &msg, 0) == pdTRUE) {
             uint8_t sum = 0;

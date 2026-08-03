@@ -1,8 +1,8 @@
-# Miniature EV Control System (ESP32, TWAI loopback)
+# Miniature EV Control System (ESP32, TWAI CAN bus)
 
-Two-node EV control system on one ESP32: a sensor node (DIM) and a
-controller node (VCU), communicating over CAN (TWAI) in self-test loopback
-mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
+Two-node EV control system on two ESP32 boards: a sensor node (DIM) and a
+controller node (VCU), communicating over a real CAN (TWAI) bus through
+3.3V CAN transceiver modules (e.g. SN65HVD230).
 
 ## Features
 
@@ -13,6 +13,8 @@ mode. Jumper wire from GPIO 5 (TX) to GPIO 4 (RX), no transceiver needed.
 - Brake/pedal plausibility check with hysteresis
 - Fault detection, latching, and persistence across reboot (NVS)
 - Fails safe to zero if the CAN connection is lost
+- Detects CAN bus-off (the controller disconnecting itself after too many
+  transmit errors) and recovers automatically
 - CAN frame logging + Python decoder/plotter
 
 ## Demo
@@ -56,19 +58,32 @@ a captured session.
 
 ## Debugging and design notes
 
-- Single ESP32, no CAN transceiver. The two nodes only exchange data as real
-  CAN frames over a physical loopback wire, no shared memory between them.
-- The ESP32's CAN peripheral doesn't automatically receive its own
-  transmitted frames from the TX-RX wire. Needs an explicit self-reception
-  flag on every send (`msg.self = 1`).
+### Hardware and build
+
+- Two separate ESP32 boards, each with its own CAN transceiver. DIM and VCU
+  only exchange data as real CAN frames over the bus, no shared memory
+  between them.
+- Each board is built from the same source with a different role flag
+  (`NODE_ROLE_DIM` / `NODE_ROLE_VCU` in `platformio.ini`), so only that
+  board's own peripherals and tasks get started.
 - Button ISRs are placed in IRAM instead of flash, so they can still run
   even during an NVS (flash) write.
-- IDs split `0x10x` (DIM) / `0x20x` (VCU) so the acceptance filter can
-  reject the VCU's own frames with a single bitmask, not a lookup list.
+- No driver library for the MPU6050 (raw register access instead).
+
+### CAN message design
+
+- IDs split `0x10x` (DIM) / `0x20x` (VCU) so each board's acceptance filter
+  can bitmask for the frames it cares about, and so DIM's sensor frames
+  always win CAN's bus arbitration over VCU's status frames if both try to
+  transmit at the same instant.
 - DIM ships raw ADC counts, not a calculated percentage, so the VCU sees
   the real sensor reading instead of the DIM's own conclusion.
 - Every frame carries a counter and checksum, to tell apart a lost frame
   from a corrupted one.
+- Fault frames are event-driven (sent on change), not broadcast every tick.
+
+### Fault detection and safety
+
 - Dual potentiometers cross-check each other's readings.
 - A time window (not an instant cutoff) decides whether a pedal mismatch
   is a real fault or just noise.
@@ -76,28 +91,42 @@ a captured session.
   right now, latched is what's ever gone seriously wrong.
 - Only `DIM_TIMEOUT` latches, since a fully silent sensor node is a more
   serious failure than a momentary reading mismatch.
+- CAN bus-off is tracked separately from `DIM_TIMEOUT`: one means VCU's own
+  CAN controller failed electrically, the other just means DIM went quiet.
+  Recovery is triggered once per bus-off event and never blocks the control
+  loop.
 - Latched faults are saved to NVS, so restarting the board doesn't erase
   them.
 - Clearing a latched fault requires holding the brake and start buttons
   together for 3 seconds while in `FAULT`, a deliberate action instead of
   something that clears itself.
-- Fault frames are event-driven (sent on change), not broadcast every tick.
-- No driver library for the MPU6050 (raw register access instead).
 
 
 
 ## Wiring
 
+Both boards' transceivers share a CAN bus (CAN_H to CAN_H, CAN_L to CAN_L),
+120Ω termination at each end.
+
+**DIM board (sensor node):**
+
 | Signal         | GPIO | Notes |
 |----------------|------|-------|
-| TWAI TX        | 5    | jumper to GPIO 4 |
-| TWAI RX        | 4    | |
+| TWAI TX        | 5    | to transceiver TXD |
+| TWAI RX        | 4    | to transceiver RXD |
 | I2C SDA        | 21   | MPU6050, 3V3 only |
 | I2C SCL        | 22   | |
 | Pot A (APPS1)  | 34   | ADC1 |
 | Pot B (APPS2)  | 35   | ADC1 |
 | Brake button   | 25   | `INPUT_PULLUP`, pressed = LOW |
 | Start button   | 26   | `INPUT_PULLUP` |
+
+**VCU board (controller node):**
+
+| Signal         | GPIO | Notes |
+|----------------|------|-------|
+| TWAI TX        | 5    | to transceiver TXD |
+| TWAI RX        | 4    | to transceiver RXD |
 | PWM torque out | 18   | servo or LED |
 | Buzzer         | 19   | |
 | Status LED     | 2    | |
@@ -135,6 +164,9 @@ Every CAN frame is logged as one line by `canSend()`:
 ```
 CANTX,<millis>,<id_hex>,<ok 0/1>,<byte0>,<byte1>,...,<byte7>
 ```
+
+Each board only logs the frames it transmits itself, so capture each board's
+serial output separately to see both sides.
 
 Capture and decode:
 

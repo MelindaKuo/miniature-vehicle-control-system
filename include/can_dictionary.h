@@ -19,7 +19,6 @@ constexpr uint8_t CAN_DLC = 8;
 constexpr uint8_t OFF_COUNTER  = 6;
 constexpr uint8_t OFF_CHECKSUM = 7;
 
-// ===========================================================================
 // 0x100 DIM_PEDAL -- 20 ms
 
 //   [0..1] u16  pot_a_raw     0..4095   raw ADC, APPS1
@@ -42,7 +41,7 @@ namespace PedalFlag {
     // bits 2..7 reserved, transmit as 0
 }
 
-// ===========================================================================
+
 // 0x101 DIM_IMU -- 50 ms
 
 //   [0..1] i16  accel_x   milli-g   (1000 = 1.0 g)
@@ -58,7 +57,7 @@ namespace ImuMsg {
     constexpr int16_t MILLI_G_PER_G = 1000;
 }
 
-// ===========================================================================
+
 // 0x102 DIM_HEARTBEAT -- 100 ms
 //   [0..3] u32  uptime_ms   DIM's millis() at transmit
 //   [4]    u8   dim_state   see DimState (Step 3)
@@ -72,7 +71,7 @@ namespace HeartbeatMsg {
     constexpr uint8_t OFF_RSVD      = 5;
 }
 
-// ===========================================================================
+
 // 0x200 VCU_STATUS -- 50 ms
 //   [0]    u8   drive_state   
 //   [1]    u8   torque_pct     0..100, the value actually commanded to PWM
@@ -98,21 +97,22 @@ namespace FaultBit {
     constexpr uint16_t PEDAL_TIMEOUT     = 0x0004;  // no DIM_PEDAL frame recently
     constexpr uint16_t IMU_TIMEOUT       = 0x0008;  // no DIM_IMU frame recently
     constexpr uint16_t DIM_TIMEOUT       = 0x0010;  // no DIM_HEARTBEAT frame recently -- the whole node looks dead
+    constexpr uint16_t CAN_BUS_OFF       = 0x0020; // bus 
     // bits 5-15 reserved for expansion
 }
 
-// ===========================================================================
+
 // 0x201 VCU_FAULT -- on change, rate limited to 200 ms
-// ---------------------------------------------------------------------------
-//   [0]    u8   fault_code      see FaultCode (vcu.h) -- most recent transition,
-//                               0 (NONE) if nothing has ever faulted
+
+//   [0]    u8   fault_code                         
 //   [1]    u8   flags           bit0 = latched, bit1 = newly set this frame
 //   [2..3] u16  latched_faults  bitmask (FaultBit) of everything latched since
 //                               boot
-//   [4]    u8   nvs_write_count  see NVS wear in the log
+//   [4]    u8   nvs_write_count  
 //   [5]    u8   reserved
 //   [6]    u8   counter
 //   [7]    u8   checksum
+
 
 namespace FaultMsg {
     constexpr uint8_t OFF_FAULT_CODE     = 0;

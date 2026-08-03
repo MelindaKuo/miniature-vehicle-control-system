@@ -20,6 +20,7 @@ enum class FaultCode : uint8_t {
     PEDAL_TIMEOUT      = 3,
     IMU_TIMEOUT        = 4,
     DIM_TIMEOUT        = 5,
+    CAN_BUS_OFF        = 6, 
 };
 
 
