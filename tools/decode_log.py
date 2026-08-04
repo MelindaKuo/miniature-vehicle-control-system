@@ -168,8 +168,16 @@ def parse_line(line: str):
 def _iter_lines(args):
     """Yields raw text lines from either a file or a live serial port."""
     if args.port:
+        import time
         import serial  # pip install pyserial
         with serial.Serial(args.port, args.baud, timeout=1) as ser:
+            if not args.no_reset:
+                ser.dtr = False
+                ser.rts = True
+                time.sleep(0.1)
+                ser.rts = False
+                time.sleep(0.3)
+                ser.reset_input_buffer()
             print(f"Reading live from {args.port} @ {args.baud} -- Ctrl+C to stop and plot")
             while True:
                 raw = ser.readline()
@@ -187,6 +195,8 @@ def main():
                          help="path to a captured log file (omit if using --port)")
     parser.add_argument("--port", help="serial port to read live instead of a file, e.g. COM5")
     parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--no-reset", action="store_true",
+                         help="don't reset the board on connect (default is to reset, so each run starts from BOOT)")
     parser.add_argument("--live", action="store_true",
                          help="print each decoded VCU_STATUS/VCU_FAULT frame as it arrives")
     parser.add_argument("--live-interval-ms", type=int, default=300,

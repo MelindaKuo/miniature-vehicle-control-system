@@ -1,6 +1,6 @@
-# Miniature EV Control System (ESP32, TWAI CAN bus)
+# Miniature Vehicle Control System (ESP32, TWAI CAN bus)
 
-Two-node EV control system on two ESP32 boards: a sensor node (DIM) and a
+Two-node Vehicle control system on two ESP32 boards: a sensor node (DIM) and a
 controller node (VCU), communicating over a real CAN (TWAI) bus through
 3.3V CAN transceiver modules (e.g. SN65HVD230).
 
@@ -19,35 +19,38 @@ controller node (VCU), communicating over a real CAN (TWAI) bus through
 
 ## Demo
 
-[Watch the demo video](media/demo.mp4)
+[Watch the demo video](media/minivehicleproj.mp4)
 
-**Hardware setup:**
+**Hardware setup:** both nodes on one bench. Servo and buzzer on the VCU
+board, pedal potentiometers, buttons and IMU on the DIM board, joined only
+by the CAN bus.
 
-<img src="media/idle-state.png" width="500">
+<img src="media/hardware-setup.png" width="560">
 
 **Normal operation:** live decoder output, armed and idle, then torque
-tracking the pedal from partial to full press.
+tracking the pedal as it is pressed.
 
-<sub>IDLE, no faults</sub>
+<sub>IDLE with no faults, then arming into READY</sub>
 <br>
-<img src="media/terminal-idle-state.png" width="450">
+<img src="media/terminal-idle.png" width="560">
 
-<sub>DRIVE, pedal pressed</sub>
+<sub>DRIVE, torque following the pedal at 70% and slew limited</sub>
 <br>
-<img src="media/terminal-drive-pedal-press.png" width="450">
+<img src="media/terminal-drive.png" width="560">
 
-<sub>DRIVE, ~100% pedal</sub>
-<br>
-<img src="media/terminal-drive-full-pedal.png" width="450">
+**Pedal plausibility:** turning the two potentiometers past the tolerance
+faults and zeroes torque, and the pedal has to return to 0% to clear.
 
-**Fail-safe proof:** pulling the CAN loopback jumper mid-drive forces a
-fault and drops torque to zero, because the VCU only ever knew about the
-sensor through a wire that can be cut.
+<img src="media/terminal-pedal-implausible.png" width="560">
+
+**Fail-safe proof:** pulling the CAN_H line mid-drive forces a fault and
+drops torque to zero, because the VCU only ever knew about the sensor
+through a wire that can be cut.
 
 <table>
 <tr>
-<td align="center" width="50%"><img src="media/fault-timeout.png" width="330"><br><sub>Pulling the jumper</sub></td>
-<td align="center" width="50%"><img src="media/terminal-fault-timeout.png" width="330"><br><sub>Resulting FAULT state</sub></td>
+<td align="center" width="40%"><img src="media/hardware-fault.png" width="320"><br><sub>Pulling the CAN_H line</sub></td>
+<td align="center" width="60%"><img src="media/terminal-fault.png" width="460"><br><sub>Every timeout fires, DIM_TIMEOUT latches, torque to zero</sub></td>
 </tr>
 </table>
 

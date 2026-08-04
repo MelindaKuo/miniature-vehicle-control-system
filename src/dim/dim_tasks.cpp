@@ -17,6 +17,8 @@ static uint8_t s_counterPedal     = 0;
 static uint8_t s_counterImu       = 0;
 static uint8_t s_counterHeartbeat = 0;
 
+static bool s_dimLastBusOff = false;
+
 
 static volatile uint32_t s_brakeEdgeCount = 0;
 static volatile uint32_t s_startEdgeCount = 0;
@@ -109,6 +111,7 @@ static void dimImuTask(void* arg) {
         int16_t ax, ay, az; 
 
         if(mpu6050ReadAccelRaw(ax, ay, az)){
+            s_dimState = DimState::SENSOR_OK;
             int16_t mgX = (int32_t)ax * ImuMsg::MILLI_G_PER_G/16384;
             int16_t mgY = (int32_t)ay * ImuMsg::MILLI_G_PER_G/16384;
             int16_t mgZ = (int32_t)az * ImuMsg::MILLI_G_PER_G/16384;
@@ -137,8 +140,9 @@ static void dimImuTask(void* arg) {
             canSend(CanId::DIM_IMU, bytes, CAN_DLC);
 
         }
-
-
+        else{
+            s_dimState = DimState::SENSOR_ERR;
+        }
 
         vTaskDelayUntil(&lastWake, period);
     }
@@ -151,9 +155,26 @@ static void dimHeartbeatTask(void* arg) {
 
     for (;;) {
 
-        uint32_t time = millis(); 
+        twai_status_info_t busStatus;
+        canGetStatus(&busStatus);
 
-        uint8_t bytes[CAN_DLC] = {}; 
+        Serial.printf("DIMBUS,%lu,%d,%lu,%lu,%lu\n", millis(), (int)busStatus.state,
+                      busStatus.tx_error_counter, busStatus.rx_error_counter,
+                      busStatus.msgs_to_tx);
+
+        if(busStatus.state == TWAI_STATE_BUS_OFF){
+            if(!s_dimLastBusOff){
+                twai_initiate_recovery();
+            }
+            s_dimLastBusOff = true;
+        }
+        else{
+            s_dimLastBusOff = false;
+        }
+
+        uint32_t time = millis();
+
+        uint8_t bytes[CAN_DLC] = {};
 
         bytes[0] = time & 0xFF; 
         bytes[1] =  (time >> 8) & 0xFF; 

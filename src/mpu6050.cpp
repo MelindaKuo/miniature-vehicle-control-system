@@ -4,21 +4,24 @@
 #include "mpu6050.h"
 
 bool mpu6050Init() {
-    Wire.beginTransmission(MPU6050_I2C_ADDR);
-    Wire.write(REG_WHO_AM_I);
-    Wire.endTransmission(false);
-    Wire.requestFrom(MPU6050_I2C_ADDR, (uint8_t)1);
+    delay(100);
 
-    uint8_t who = Wire.read(); 
-    if(who != 0x68){
+    Wire.beginTransmission(MPU6050_I2C_ADDR);
+    Wire.write(REG_PWR_MGMT_1);
+    Wire.write(0x00);
+    if(Wire.endTransmission() != 0){
         return false;
     }
 
     Wire.beginTransmission(MPU6050_I2C_ADDR);
-    Wire.write(REG_PWR_MGMT_1); 
-    Wire.write(0x00);
-    Wire.endTransmission(); 
-    return true;
+    Wire.write(REG_WHO_AM_I);
+    Wire.endTransmission(false);
+    if(Wire.requestFrom(MPU6050_I2C_ADDR, (uint8_t)1) != 1){
+        return false;
+    }
+
+    uint8_t who = Wire.read();
+    return who == 0x68;
 }
 
 bool mpu6050ReadAccelRaw(int16_t& ax, int16_t& ay, int16_t& az) {

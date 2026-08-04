@@ -25,4 +25,4 @@
 
 
 #define LEDC_CH_TORQUE      0
-#define LEDC_CH_BUZZER      1
+#define LEDC_CH_BUZZER      2

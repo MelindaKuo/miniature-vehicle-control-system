@@ -50,7 +50,8 @@ static uint32_t   s_readyEnteredAtMs = 0;  //buzzer timer
 
 static uint32_t s_lastPedalRxMs     = 0;   
 static uint32_t s_lastImuRxMs       = 0;   
-static uint32_t s_lastHeartbeatRxMs = 0;   
+static uint32_t s_lastHeartbeatRxMs = 0;
+static bool     s_heartbeatEverRx   = false;
 
 static uint16_t  s_activeFaults        = 0;
 static uint16_t  s_latchedFaults       = 0;
@@ -64,6 +65,14 @@ static bool s_appsBrakeCheck = false;
 
 static uint32_t s_pedalMismatchStartMs = 0;
 static constexpr uint32_t PEDAL_MISMATCH_PERSIST_MS = 100;
+
+static constexpr uint32_t BUZZER_FREQ_HZ = 2000;
+static constexpr uint32_t BUZZER_DUTY    = 128;
+
+static constexpr int32_t  IMU_MAG_MIN_MG = 800;
+static constexpr int32_t  IMU_MAG_MAX_MG = 1200;
+static constexpr uint32_t IMU_IMPLAUSIBLE_PERSIST_MS = 120;
+static uint32_t s_imuImplausibleStartMs = 0;
 
 
 static bool s_lastBusOff = false;
@@ -87,7 +96,7 @@ static bool checkPedalPlausible(uint16_t potA_raw, uint16_t potB_raw, uint8_t* o
     int pctDiff = abs(potB_pct - potA_pct);
     uint8_t avgPct = (potA_pct + potB_pct) / 2;
 
-    if (pctDiff <= 10) {
+    if (pctDiff <= 30) {
         s_pedalMismatchStartMs = 0;
         *outPedalPct = avgPct;
         return true;
@@ -123,8 +132,8 @@ static bool checkBrakePedalPlausible(uint8_t pedalPCT, bool brakePressed){
 static bool checkImuPlausible(int16_t ax, int16_t ay, int16_t az) {
 
     int32_t tSquared = (ax*ax) + (ay*ay) + (az*az);
-    int32_t lThreash = 900*900; 
-    int32_t hThreash = 1100*1100; 
+    int32_t lThreash = IMU_MAG_MIN_MG * IMU_MAG_MIN_MG; 
+    int32_t hThreash = IMU_MAG_MAX_MG * IMU_MAG_MAX_MG; 
 
     if(ax < -2000 || ax > 2000){
         return false; 
@@ -236,8 +245,8 @@ static uint8_t computeTorquePct(DriveState state, uint8_t pedalPct) {
 }
 
 static void applyTorqueOutput(uint8_t torquePct) {
-    uint32_t pulseUs = 1000 + ((uint32_t)torquePct * 1000) / 100;  // 1000..2000us
-    uint32_t duty = (pulseUs * 4096UL) / 20000UL;                  // 20ms period, 12-bit res
+    uint32_t pulseUs = 1000 + ((uint32_t)torquePct * 1000) / 100;
+    uint32_t duty = (pulseUs * 4096UL) / 20000UL;
     ledcWrite(LEDC_CH_TORQUE, duty);
 }
 
@@ -263,7 +272,15 @@ static void publishVcuStatus(DriveState state, uint8_t torquePct, uint8_t pedalP
 
 static void updateTimeoutFaults() {
 
-    uint32_t now = millis(); 
+    uint32_t now = millis();
+
+    if(!s_heartbeatEverRx){
+        s_activeFaults |= FaultBit::PEDAL_TIMEOUT;
+        s_activeFaults |= FaultBit::IMU_TIMEOUT;
+        s_activeFaults &= ~FaultBit::DIM_TIMEOUT;
+        return;
+    }
+
     if(now - s_lastHeartbeatRxMs > TIMEOUT_DIM_MS){
         s_activeFaults |= FaultBit::DIM_TIMEOUT; 
         s_activeFaults |= FaultBit::PEDAL_TIMEOUT;
@@ -404,14 +421,17 @@ static void vcuControlTask(void* arg) {
         
         bool busOffNow = (status.state == TWAI_STATE_BUS_OFF);
 
-        if(busOffNow){
+        bool busUnhealthy = busOffNow || (status.state == TWAI_STATE_RECOVERING);
+
+        if(busUnhealthy){
             s_activeFaults |= FaultBit::CAN_BUS_OFF;
-            if(!s_lastBusOff){
-                twai_initiate_recovery();
-            }
         }
         else{
             s_activeFaults &= ~FaultBit::CAN_BUS_OFF;
+        }
+
+        if(busOffNow && !s_lastBusOff){
+            twai_initiate_recovery();
         }
 
         s_lastBusOff = busOffNow;
@@ -465,6 +485,7 @@ static void vcuControlTask(void* arg) {
                     s_lastHeartbeatCounter = newCounter;
                     s_heartbeatCounterValid = true;
                     s_lastHeartbeatRxMs = millis();
+                    s_heartbeatEverRx = true;
                     break;
                 }
                 default:
@@ -480,7 +501,17 @@ static void vcuControlTask(void* arg) {
 
 
         bool pedalOk = checkPedalPlausible(s_potA_raw, s_potB_raw, &pedalPct);
-        bool imuOk   = checkImuPlausible(s_accelX_mg, s_accelY_mg, s_accelZ_mg);
+        bool imuOk = true;
+        if(checkImuPlausible(s_accelX_mg, s_accelY_mg, s_accelZ_mg)){
+            s_imuImplausibleStartMs = 0;
+        }
+        else{
+            uint32_t nowImu = millis();
+            if(s_imuImplausibleStartMs == 0){
+                s_imuImplausibleStartMs = nowImu;
+            }
+            imuOk = (nowImu - s_imuImplausibleStartMs) < IMU_IMPLAUSIBLE_PERSIST_MS;
+        }
         
 
         updateTimeoutFaults();
@@ -506,7 +537,7 @@ static void vcuControlTask(void* arg) {
                                        s_activeFaults, s_latchedFaults);
         s_prevButtonFlags = s_buttonFlags;
 
-        digitalWrite(PIN_BUZZER, s_driveState == DriveState::READY ? HIGH : LOW);
+        ledcWrite(LEDC_CH_BUZZER, s_driveState == DriveState::READY ? BUZZER_DUTY : 0);
 
         uint8_t torquePct = computeTorquePct(s_driveState, pedalPct);
         bool brakePedalActive = checkBrakePedalPlausible(pedalPct, brakePressed);
@@ -540,6 +571,17 @@ void vcuStart() {
         s_driveState = DriveState::FAULT;
     }
 
+    ledcSetup(LEDC_CH_TORQUE, 50, 12);
+    ledcAttachPin(PIN_PWM_TORQUE, LEDC_CH_TORQUE);
+    ledcWrite(LEDC_CH_TORQUE, 0);
+
+    ledcSetup(LEDC_CH_BUZZER, BUZZER_FREQ_HZ, 8);
+    ledcAttachPin(PIN_BUZZER, LEDC_CH_BUZZER);
+
+    ledcWrite(LEDC_CH_BUZZER, BUZZER_DUTY);
+    delay(400);
+    ledcWrite(LEDC_CH_BUZZER, 0);
+
     s_rxQueue = xQueueCreate(QLEN_VCU_RX, sizeof(twai_message_t));
 
     xTaskCreatePinnedToCore(vcuRxTask, "vcu_rx",
@@ -549,14 +591,6 @@ void vcuStart() {
     xTaskCreatePinnedToCore(vcuControlTask, "vcu_control",
                             STACK_VCU_CONTROL, nullptr,
                             PRIO_VCU_CONTROL, nullptr, CORE_VCU);
-
-
-    ledcSetup(LEDC_CH_TORQUE, 50, 12);
-    ledcAttachPin(PIN_PWM_TORQUE, LEDC_CH_TORQUE);
-    ledcWrite(LEDC_CH_TORQUE, 0);
-
-    pinMode(PIN_BUZZER, OUTPUT);
-    digitalWrite(PIN_BUZZER, LOW);
 
     (void)s_counterFault;
 }
