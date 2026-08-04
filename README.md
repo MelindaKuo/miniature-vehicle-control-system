@@ -44,6 +44,14 @@ faults and zeroes torque until the two readings agree again.
 
 <img src="media/terminal-pedal-implausible.png" width="560">
 
+**Brake override:** braking with the pedal past 25% cuts torque to zero at
+once. The pedal never moves off 48%, the state stays `DRIVE` and no fault is
+raised, so the only thing that changed is the brake. Torque then stays cut
+until the pedal comes back below 5%, so letting go of the brake alone does
+not give it back.
+
+<img src="media/terminal-brake-override.png" width="560">
+
 **Fail-safe proof:** pulling the CAN_H line mid-drive forces a fault and
 drops torque to zero, because the VCU only ever knew about the sensor
 through a wire that can be cut.

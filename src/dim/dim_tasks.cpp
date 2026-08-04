@@ -169,6 +169,9 @@ static void dimHeartbeatTask(void* arg) {
             s_dimLastBusOff = true;
         }
         else{
+            if(busStatus.state == TWAI_STATE_STOPPED){
+                twai_start();
+            }
             s_dimLastBusOff = false;
         }
 

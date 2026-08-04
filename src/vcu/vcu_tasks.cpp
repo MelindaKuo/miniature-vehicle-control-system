@@ -96,7 +96,7 @@ static bool checkPedalPlausible(uint16_t potA_raw, uint16_t potB_raw, uint8_t* o
     int pctDiff = abs(potB_pct - potA_pct);
     uint8_t avgPct = (potA_pct + potB_pct) / 2;
 
-    if (pctDiff <= 30) {
+    if (pctDiff <= 10) {
         s_pedalMismatchStartMs = 0;
         *outPedalPct = avgPct;
         return true;
@@ -421,7 +421,7 @@ static void vcuControlTask(void* arg) {
         
         bool busOffNow = (status.state == TWAI_STATE_BUS_OFF);
 
-        bool busUnhealthy = busOffNow || (status.state == TWAI_STATE_RECOVERING);
+        bool busUnhealthy = status.state != TWAI_STATE_RUNNING;
 
         if(busUnhealthy){
             s_activeFaults |= FaultBit::CAN_BUS_OFF;
@@ -432,6 +432,9 @@ static void vcuControlTask(void* arg) {
 
         if(busOffNow && !s_lastBusOff){
             twai_initiate_recovery();
+        }
+        else if(status.state == TWAI_STATE_STOPPED){
+            twai_start();
         }
 
         s_lastBusOff = busOffNow;
