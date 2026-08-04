@@ -10,7 +10,8 @@ controller node (VCU), communicating over a real CAN (TWAI) bus through
 - MPU6050 IMU with plausibility check
 - Drive state machine: `BOOT` → `IDLE` → `READY` → `DRIVE` → `FAULT`
 - Torque output with slew limiting
-- Brake/pedal plausibility check with hysteresis
+- Brake/pedal plausibility check: braking with the pedal past 25% cuts
+  torque to zero and keeps it cut until the pedal drops below 5%
 - Fault detection, latching, and persistence across reboot (NVS)
 - Fails safe to zero if the CAN connection is lost
 - Detects CAN bus-off (the controller disconnecting itself after too many
@@ -39,7 +40,7 @@ tracking the pedal as it is pressed.
 <img src="media/terminal-drive.png" width="560">
 
 **Pedal plausibility:** turning the two potentiometers past the tolerance
-faults and zeroes torque, and the pedal has to return to 0% to clear.
+faults and zeroes torque until the two readings agree again.
 
 <img src="media/terminal-pedal-implausible.png" width="560">
 
@@ -90,6 +91,12 @@ a captured session.
 - Dual potentiometers cross-check each other's readings.
 - A time window (not an instant cutoff) decides whether a pedal mismatch
   is a real fault or just noise.
+- Pressing the brake while the pedal is past 25% cuts torque to zero, and
+  the cut latches: letting go of the brake does not give torque back, the
+  pedal has to come below 5% first. Both pedals at once means something is
+  wrong, so braking wins and getting torque back has to be deliberate.
+  This is an override, not a fault, so the state stays `DRIVE` and no
+  fault bit is set.
 - Active faults and latched faults are separate: active is what's wrong
   right now, latched is what's ever gone seriously wrong.
 - Only `DIM_TIMEOUT` latches, since a fully silent sensor node is a more
